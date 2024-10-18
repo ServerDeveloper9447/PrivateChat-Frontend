@@ -57,7 +57,7 @@ const ChatPage: React.FC = () => {
   React.useEffect(() => {
     (async () => {
       const res = await getUserChats();
-      if(res[0]) setChats(res[0].chats);
+      if(res[0]) setChats(res[0].chatIds);
     })();
   }, []); 
 
@@ -116,7 +116,6 @@ const ChatPage: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Chat List */}
       <div className="w-1/3 bg-white border-r border-gray-300 flex flex-col">
         <div className="p-4 border-b border-gray-300">
           <div className="flex justify-between items-center mb-4">
@@ -158,7 +157,6 @@ const ChatPage: React.FC = () => {
         </ul>
       </div>
 
-      {/* Chat Content */}
       <div className="w-2/3 flex flex-col">
         {selectedChat ? (
           <>
