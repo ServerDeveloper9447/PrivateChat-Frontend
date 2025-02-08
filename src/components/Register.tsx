@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { MessageCircle, UserPlus } from 'lucide-react';
 import { register } from '../functions';
-import { Loading } from 'notiflix';
+import { Loading, Notify } from 'notiflix';
 
 const Register: React.FC = () => {
   const [name, setName] = useState('');
@@ -10,7 +10,7 @@ const Register: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error,setError] = useState('')
-  const navigate = useNavigate()
+  const [passvalid,setPassvalid] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,10 +18,11 @@ const Register: React.FC = () => {
     setError('')
     Loading.pulse()
     const [res,err] = (await register({username:name,email,password}))!
+    console.log([res,err])
     if(!err) {
       localStorage.setItem("private_key",res.private_key)
-      navigate('/chat')
       Loading.remove()
+      Notify.success("Registered. Please verify via the email sent to you.")
     } else {
       Loading.remove();
       setError(err)
@@ -72,10 +73,17 @@ const Register: React.FC = () => {
               id="password"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                if(!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(e.target.value)) {
+                  setPassvalid(false);
+                } else {
+                  setPassvalid(true)
+                }
+                setPassword(e.target.value)
+              }}
               required
             />
-            <p style={{color:"grey", fontSize: 'small'}}>Password must contain at least 8 characters with minimum one uppercase, one lowercase, one number and any of @ $ ! % * ? &.</p>
+            <p style={{color:!passvalid ? "red" : "green", fontSize: 'small'}}>Password must contain at least 8 characters with minimum one uppercase, one lowercase, one number and any of @ $ ! % * ? &.</p>
           </div>
           <div className="mb-6">
             <label htmlFor="confirmPassword" className="block text-gray-700 text-sm font-bold mb-2">

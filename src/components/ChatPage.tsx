@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { MessageCircle, Send, Search, Plus, X } from 'lucide-react';
-import { getUserChats } from '../functions';
+import { createChat, getChat, getUserChats, searchUser } from '../functions';
+import Notiflix from 'notiflix';
 
 interface Chat {
-  id: number;
+  id: string;
   name: string;
   avatar: string;
   lastMessage: string;
@@ -18,41 +19,7 @@ interface Message {
 }
 
 const ChatPage: React.FC = () => {
-  const [chats, setChats] = useState<Chat[]>([
-    {
-      id: 1,
-      name: "Alice",
-      avatar: "https://i.pravatar.cc/150?img=1",
-      lastMessage: "Hey, how are you?",
-      messages: [
-        { id: 1, sender: "Alice", content: "Hey, how are you?", timestamp: "10:00 AM" },
-        { id: 2, sender: "You", content: "I'm good, thanks! How about you?", timestamp: "10:05 AM" },
-        { id: 3, sender: "Alice", content: "Doing great! Any plans for the weekend?", timestamp: "10:10 AM" },
-      ]
-    },
-    {
-      id: 2,
-      name: "Bob",
-      avatar: "https://i.pravatar.cc/150?img=2",
-      lastMessage: "Can we meet tomorrow?",
-      messages: [
-        { id: 1, sender: "Bob", content: "Can we meet tomorrow?", timestamp: "Yesterday" },
-        { id: 2, sender: "You", content: "Sure, what time works for you?", timestamp: "Yesterday" },
-        { id: 3, sender: "Bob", content: "How about 2 PM?", timestamp: "Today" },
-      ]
-    },
-    {
-      id: 3,
-      name: "Charlie",
-      avatar: "https://i.pravatar.cc/150?img=3",
-      lastMessage: "I've sent the files.",
-      messages: [
-        { id: 1, sender: "Charlie", content: "I've sent the files.", timestamp: "Monday" },
-        { id: 2, sender: "You", content: "Got them, thanks!", timestamp: "Monday" },
-        { id: 3, sender: "Charlie", content: "Let me know if you need anything else.", timestamp: "Tuesday" },
-      ]
-    },
-  ]);
+  const [chats, setChats] = useState<Chat[] | []>([]);
 
   React.useEffect(() => {
     (async () => {
@@ -68,6 +35,13 @@ const ChatPage: React.FC = () => {
   const [newChatName, setNewChatName] = useState('');
 
   const handleChatSelect = (chat: Chat) => {
+    getChat(chat.id)
+    .then(([_,err]) => {
+      if(err) {
+        Notiflix.Notify.failure("Something went wrong");
+        return;
+      }
+    })
     setSelectedChat(chat);
   };
 
@@ -82,10 +56,10 @@ const ChatPage: React.FC = () => {
       };
       const updatedChat = {
         ...selectedChat,
-        messages: [...selectedChat.messages, newMessage],
+        messages: [...selectedChat?.messages, newMessage],
         lastMessage: newMessage.content
       };
-      setChats(chats.map(chat => chat.id === selectedChat.id ? updatedChat : chat));
+      setChats(chats.length != 0 ? chats.map(chat => chat.id === selectedChat.id ? updatedChat : chat) : []);
       setSelectedChat(updatedChat);
       setMessage('');
     }
@@ -100,18 +74,44 @@ const ChatPage: React.FC = () => {
   const filteredChats = searchTerm ? searchChats(searchTerm) : chats;
 
   const handleNewChat = () => {
-    if (newChatName.trim()) {
-      const newChat: Chat = {
-        id: chats.length + 1,
-        name: newChatName.trim(),
-        avatar: `https://i.pravatar.cc/150?img=${chats.length + 1}`,
-        lastMessage: "No messages yet",
-        messages: []
+    Notiflix.Loading.pulse("Finding user...");
+    if(chats.find((x) => x.name === newChatName)) {
+      setSelectedChat(chats.find((x) => x.name === newChatName) ?? null)
+      setIsNewChatModalOpen(false)
+      Notiflix.Loading.remove()
+      return;
+    };
+    searchUser(newChatName)
+    .then(([user,err]) => {
+      Notiflix.Loading.remove()
+      if(err) {
+        Notiflix.Notify.failure("User not found");
+        return;
       };
-      setChats([newChat, ...chats]);
-      setNewChatName('');
-      setIsNewChatModalOpen(false);
-    }
+      if(!user) {
+        Notiflix.Loading.remove();
+        Notiflix.Notify.failure("Something went wrong");
+        return;
+      }
+      createChat({id: user._id})
+      .then(([nchat,err]) => {
+        Notiflix.Loading.remove()
+        if(err) {
+          Notiflix.Notify.failure("Something went wrong");
+          return;
+        }
+        const chat = {
+          id: nchat.chatId,
+          name: user.username,
+          avatar: user.avatar ?? "",
+          lastMessage: '',
+          messages: []
+        }
+        setChats([chat,...chats])
+        setNewChatName('')
+        setIsNewChatModalOpen(false);
+      })
+    })
   };
 
   return (
@@ -200,8 +200,6 @@ const ChatPage: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* New Chat Modal */}
       {isNewChatModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg w-96">
@@ -216,9 +214,9 @@ const ChatPage: React.FC = () => {
             </div>
             <input
               type="text"
-              placeholder="Enter contact name"
+              placeholder="Enter username without @"
               value={newChatName}
-              onChange={(e) => setNewChatName(e.target.value)}
+              onChange={(e) => setNewChatName(e.target.value.replace(/ /g,""))}
               className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
             />
             <button
